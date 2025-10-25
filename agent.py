@@ -104,70 +104,7 @@ chat_proto = Protocol(spec=chat_protocol_spec)
 
 @chat_proto.on_message(ChatMessage)
 async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
-    ctx.storage.set(str(ctx.session), sender)
-    await ctx.send(
-        sender,
-        ChatAcknowledgement(timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id),
-    )
-
-    for item in msg.content:
-        if isinstance(item, StartSessionContent):
-            ctx.logger.info(f"Got a start session message from {sender}")
-            continue
-        elif isinstance(item, TextContent):
-            user_query = item.text.strip()
-            ctx.logger.info(f"Got a Solana portfolio query from {sender}: {user_query}")
-            
-            # Check if this is a price query
-            price_keywords = ["price", "cost", "value", "worth", "trading at"]
-            is_price_query = any(keyword in user_query.lower() for keyword in price_keywords)
-            
-            if is_price_query:
-                token = extract_token_from_query(user_query)
-                if token:
-                    ctx.logger.info(f"🔍 Detected price query for token: {token}")
-                    # Store the original sender and query for when we get the CoinGecko response
-                    ctx.storage.set(f"price_request_{sender}", {
-                        "token": token,
-                        "query": user_query,
-                        "sender": sender,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    })
-                    
-                    # Request price from CoinGecko
-                    await request_price_from_coingecko(ctx, token)
-                    
-                    # Send acknowledgment to user
-                    await ctx.send(sender, create_text_chat(f"🔍 Fetching current price for {token}... Please wait a moment."))
-                    return
-            
-            try:
-                response = process_chat_query(user_query, rag, llm)
-                
-                if isinstance(response, dict):
-                    answer_text = f"**{response.get('selected_question', user_query)}**\n\n{response.get('humanized_answer', 'I apologize, but I could not process your query.')}"
-                else:
-                    answer_text = str(response)
-                
-                await ctx.send(sender, create_text_chat(answer_text))
-                
-            except Exception as e:
-                ctx.logger.error(f"Error processing Solana query: {e}")
-                await ctx.send(
-                    sender, 
-                    create_text_chat("I apologize, but I encountered an error processing your Solana portfolio query. Please try again.")
-                )
-        else:
-            ctx.logger.info(f"Got unexpected content from {sender}")
-
-@chat_proto.on_message(ChatAcknowledgement)
-async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
-    ctx.logger.info(f"Got an acknowledgement from {sender} for {msg.acknowledged_msg_id}")
-
-# Handler for CoinGecko price responses
-@agent.on_message(model=ChatMessage)
-async def handle_coingecko_response(ctx: Context, sender: str, msg: ChatMessage):
-    """Handle responses from CoinGecko agent with price data."""
+    # Handle CoinGecko responses
     if sender == COINGECKO_AGENT:
         ctx.logger.info(f"📥 Received response from CoinGecko: {sender}")
         
@@ -177,7 +114,6 @@ async def handle_coingecko_response(ctx: Context, sender: str, msg: ChatMessage)
                 ctx.logger.info(f"CoinGecko price data: {price_text}")
                 
                 # Parse price from CoinGecko response
-                # Expected format: "The current price of Pepe (PEPE) is $7.14e-06 USD, as of 2025-10-24 19:36:46 UTC"
                 price_pattern = r"price of .* is \$?([\d.e\-+]+)"
                 price_match = re.search(price_pattern, price_text, re.IGNORECASE)
                 
@@ -254,6 +190,68 @@ async def handle_coingecko_response(ctx: Context, sender: str, msg: ChatMessage)
                     # Clean up processed requests
                     for key in processed_keys:
                         ctx.storage.delete(key)
+        return
+    
+    # Handle regular chat messages
+    ctx.storage.set(str(ctx.session), sender)
+    await ctx.send(
+        sender,
+        ChatAcknowledgement(timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id),
+    )
+
+    for item in msg.content:
+        if isinstance(item, StartSessionContent):
+            ctx.logger.info(f"Got a start session message from {sender}")
+            continue
+        elif isinstance(item, TextContent):
+            user_query = item.text.strip()
+            ctx.logger.info(f"Got a Solana portfolio query from {sender}: {user_query}")
+            
+            # Check if this is a price query
+            price_keywords = ["price", "cost", "value", "worth", "trading at"]
+            is_price_query = any(keyword in user_query.lower() for keyword in price_keywords)
+            
+            if is_price_query:
+                token = extract_token_from_query(user_query)
+                if token:
+                    ctx.logger.info(f"🔍 Detected price query for token: {token}")
+                    # Store the original sender and query for when we get the CoinGecko response
+                    ctx.storage.set(f"price_request_{sender}", {
+                        "token": token,
+                        "query": user_query,
+                        "sender": sender,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    })
+                    
+                    # Request price from CoinGecko
+                    await request_price_from_coingecko(ctx, token)
+                    
+                    # Send acknowledgment to user
+                    await ctx.send(sender, create_text_chat(f"🔍 Fetching current price for {token}... Please wait a moment."))
+                    return
+            
+            try:
+                response = process_chat_query(user_query, rag, llm)
+                
+                if isinstance(response, dict):
+                    answer_text = f"**{response.get('selected_question', user_query)}**\n\n{response.get('humanized_answer', 'I apologize, but I could not process your query.')}"
+                else:
+                    answer_text = str(response)
+                
+                await ctx.send(sender, create_text_chat(answer_text))
+                
+            except Exception as e:
+                ctx.logger.error(f"Error processing Solana query: {e}")
+                await ctx.send(
+                    sender, 
+                    create_text_chat("I apologize, but I encountered an error processing your Solana portfolio query. Please try again.")
+                )
+        else:
+            ctx.logger.info(f"Got unexpected content from {sender}")
+
+@chat_proto.on_message(ChatAcknowledgement)
+async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
+    ctx.logger.info(f"Got an acknowledgement from {sender} for {msg.acknowledged_msg_id}")
 
 # Agent-to-agent trading protocol
 @agent.on_message(model=PriceRequest)
