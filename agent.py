@@ -95,13 +95,23 @@ def extract_token_from_query(query: str) -> str:
 async def request_price_from_coingecko(ctx: Context, token: str) -> None:
     """Request price data from CoinGecko agent."""
     price_query = f"What is the price of {token}?"
-    ctx.logger.info(f"🔍 Requesting price for {token} from CoinGecko")
+    ctx.logger.info(f"🔍 Requesting current price for {token} from CoinGecko agent")
     
     try:
         await ctx.send(COINGECKO_AGENT, create_text_chat(price_query))
-        ctx.logger.info(f"📤 Sent price request to CoinGecko for {token}")
+        ctx.logger.info(f"📤 Sent price request to CoinGecko for {token} - awaiting response...")
     except Exception as e:
-        ctx.logger.error(f"Error sending price request to CoinGecko: {e}")
+        ctx.logger.error(f"❌ Error sending price request to CoinGecko: {e}")
+        
+        # Clean up any pending requests for this token if the send fails
+        keys_to_remove = []
+        for key in ctx.storage.keys():
+            request_data = ctx.storage.get(key)
+            if request_data and request_data.get("token", "").upper() == token.upper():
+                keys_to_remove.append(key)
+        
+        for key in keys_to_remove:
+            ctx.storage.delete(key)
 
 metta = MeTTa()
 initialize_solana_knowledge(metta)
@@ -168,6 +178,10 @@ async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
                             elif key.startswith("trading_request_"):
                                 # Handle trading signal requests that needed price data
                                 original_sender = request_data["sender"]
+                                provided_price = request_data.get("provided_price", 0)
+                                
+                                # Log price comparison for debugging
+                                ctx.logger.info(f"💹 Price comparison for {token}: Provided=${provided_price:.4f}, Current=${price_value:.4f}")
                                 
                                 # Create price data with fetched current price
                                 price_data = {
@@ -189,6 +203,7 @@ async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
                                     
                                     await ctx.send(original_sender, trade_signal)
                                     ctx.logger.info(f"📤 Sent updated TradeSignal to {original_sender}: {trade_signal.signal} {trade_signal.percent}%")
+                                    ctx.logger.info(f"🧠 Analysis used: Entry=${price_data['entry_price']}, Current=${price_data['current_price']}, Holdings={price_data['current_holdings']}")
                                     
                                 except Exception as e:
                                     ctx.logger.error(f"Error generating trading signal with updated price: {e}")
@@ -268,26 +283,31 @@ async def handle_price_request(ctx: Context, sender: str, msg: PriceRequest):
     ctx.logger.info(f"📊 Received PriceRequest from {sender} for {msg.token}")
     
     try:
-        # If current price is 0 or very outdated, fetch from CoinGecko
-        if msg.current_price <= 0:
-            ctx.logger.info(f"🔍 Current price for {msg.token} is missing, requesting from CoinGecko")
-            
-            # Store the trading request for when we get the price
-            ctx.storage.set(f"trading_request_{sender}", {
-                "sender": sender,
-                "token": msg.token,
-                "entry_price": msg.entry_price,
-                "historical_prices": msg.historical_prices,
-                "current_holdings": msg.current_holdings,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-            
-            # Request current price from CoinGecko
-            await request_price_from_coingecko(ctx, msg.token)
-            
-            # Send acknowledgment
-            await ctx.send(sender, TradeSignal(signal="PENDING", percent=0.0))
-            return
+        # Always fetch current price from CoinGecko for accurate analysis
+        # This ensures we have the most up-to-date market data
+        ctx.logger.info(f"🔍 Fetching current price for {msg.token} from CoinGecko for accurate analysis")
+        
+        # Store the trading request for when we get the fresh price data
+        ctx.storage.set(f"trading_request_{sender}", {
+            "sender": sender,
+            "token": msg.token,
+            "entry_price": msg.entry_price,
+            "historical_prices": msg.historical_prices,
+            "current_holdings": msg.current_holdings,
+            "provided_price": msg.current_price,  # Keep the provided price for reference
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Request current price from CoinGecko
+        await request_price_from_coingecko(ctx, msg.token)
+        
+        # Send acknowledgment that we're fetching current data
+        await ctx.send(sender, TradeSignal(signal="FETCHING_CURRENT_PRICE", percent=0.0))
+        return
+        
+        # Fallback: Use provided price if CoinGecko fetch fails or for backup analysis
+        # This code should not normally be reached as we now always fetch from CoinGecko
+        ctx.logger.warning(f"⚠️ Using fallback analysis with provided price ${msg.current_price} for {msg.token}")
         
         # Convert PriceRequest to dict for processing
         price_data = {
@@ -308,10 +328,10 @@ async def handle_price_request(ctx: Context, sender: str, msg: PriceRequest):
         )
         
         await ctx.send(sender, trade_signal)
-        ctx.logger.info(f"📤 Sent TradeSignal to {sender}: {trade_signal.signal} {trade_signal.percent}%")
+        ctx.logger.info(f"📤 Sent fallback TradeSignal to {sender}: {trade_signal.signal} {trade_signal.percent}%")
         
         # Log analysis for debugging
-        ctx.logger.info(f"Analysis: {signal_result['analysis']}")
+        ctx.logger.info(f"Fallback Analysis: {signal_result['analysis']}")
         
     except Exception as e:
         ctx.logger.error(f"Error processing PriceRequest: {e}")
