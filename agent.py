@@ -28,7 +28,16 @@ from models import PriceRequest, TradeSignal, PriceResponse
 
 load_dotenv()
 
-agent = Agent(name="fiatrouter-icm", port=8008, mailbox=True, publish_agent_details=True)
+# Get the Heroku app URL from environment variable
+HEROKU_URL = os.getenv("HEROKU_URL", "https://icm-port-analyser-9c582dea09cd.herokuapp.com")
+
+agent = Agent(
+    name="fiatrouter-icm", 
+    port=int(os.getenv("PORT", 8008)), 
+    mailbox=True, 
+    publish_agent_details=True,
+    endpoint=HEROKU_URL
+)
 
 # CoinGecko agent address
 COINGECKO_AGENT = "agent1qfkgrw7tayq4ng6tpx5azhvxmm3aeug3uf9sm78erm7zp4jk4p26jyms85a"
