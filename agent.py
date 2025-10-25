@@ -34,7 +34,7 @@ HEROKU_URL = os.getenv("HEROKU_URL", "https://icm-port-analyser-9c582dea09cd.her
 agent = Agent(
     name="fiatrouter-icm", 
     port=int(os.getenv("PORT", 8008)), 
-    mailbox=True, 
+    mailbox=False,  # Disable mailbox for Heroku deployment
     publish_agent_details=True,
     endpoint=HEROKU_URL
 )
