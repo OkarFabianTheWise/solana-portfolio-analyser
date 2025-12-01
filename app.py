@@ -9,6 +9,14 @@ from uagents_core.contrib.protocols.chat import ChatMessage, ChatAcknowledgement
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this'
+from flask_cors import CORS
+
+# Enable CORS for local frontend
+CORS(
+    app,
+    resources={r"/*": {"origins": ["http://localhost:3001", "http://127.0.0.1:3001"]}},
+    supports_credentials=True
+)
 
 # Your fiatrouter-icm agent address
 AGENT_ADDRESS = "agent1qvsqzmw3x0nw2czxhf02zvprvdstylthlwt84uaawj9yr2zne2l4q2r3etl"
@@ -217,7 +225,7 @@ def api_query():
             'success': True,
             'message_id': msg_id_str,
             'status': 'queued',
-            'query': query
+            # 'query': query
         }
         
         # If wait_for_response is true, poll for the response
@@ -230,9 +238,16 @@ def api_query():
                 
                 if msg_id_str in responses:
                     response_data['status'] = 'complete'
-                    response_data['response'] = responses[msg_id_str]['text']
+
+                    raw = responses[msg_id_str]['text']
+                    query = pending_requests[msg_id_str]['query']
+
+                    cleaned = raw.replace(query, "").strip()
+
+                    response_data['response'] = cleaned
                     response_data['completed_at'] = responses[msg_id_str]['timestamp']
                     break
+
                 elif msg_id_str in pending_requests:
                     response_data['status'] = pending_requests[msg_id_str]['status']
             else:
@@ -367,8 +382,8 @@ if __name__ == '__main__':
     print(f"{'='*60}")
     print(f"Flask client agent address: {client.address}")
     print(f"Target agent address: {AGENT_ADDRESS}")
-    print(f"\nWeb Interface: http://localhost:5000")
-    print(f"API Endpoint: http://localhost:5000/api/query")
-    print(f"API Docs: http://localhost:5000/api/docs")
+    print(f"\nWeb Interface: http://localhost:8000")
+    print(f"API Endpoint: http://localhost:8000/api/query")
+    print(f"API Docs: http://localhost:8000/api/docs")
     print(f"{'='*60}\n")
     app.run(debug=True, port=8000, use_reloader=False, host='0.0.0.0')
