@@ -1,0 +1,74 @@
+FROM trueagi/hyperon:latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy your application files
+COPY . .
+
+# Install your Python dependencies (excluding hyperon since it's already in the base image)
+RUN pip install --no-cache-dir \
+    agentverse-client==0.1.10 \
+    aiohappyeyeballs==2.6.1 \
+    aiohttp==3.12.15 \
+    aiohttp-retry==2.9.1 \
+    aiosignal==1.4.0 \
+    annotated-types==0.7.0 \
+    anyio==4.11.0 \
+    attrs==25.4.0 \
+    bech32==1.2.0 \
+    blinker==1.9.0 \
+    certifi==2025.10.5 \
+    charset-normalizer==3.4.3 \
+    click==8.3.0 \
+    cosmpy==0.11.1 \
+    distlib==0.4.0 \
+    distro==1.9.0 \
+    ecdsa==0.19.1 \
+    fetchai==0.1.44 \
+    filelock==3.19.1 \
+    Flask==3.1.2 \
+    flask-cors==6.0.1 \
+    frozenlist==1.8.0 \
+    googleapis-common-protos==1.70.0 \
+    grpcio==1.75.1 \
+    h11==0.16.0 \
+    httpcore==1.0.9 \
+    httpx==0.28.1 \
+    idna==3.10 \
+    itsdangerous==2.2.0 \
+    Jinja2==3.1.6 \
+    jiter==0.11.1 \
+    jsonschema==4.25.1 \
+    jsonschema-specifications==2025.9.1 \
+    MarkupSafe==3.0.3 \
+    mnemonic==0.21 \
+    multidict==6.7.0 \
+    openai==2.6.1 \
+    platformdirs==4.4.0 \
+    propcache==0.4.0 \
+    protobuf==5.29.5 \
+    pycryptodome==3.23.0 \
+    pydantic==2.11.10 \
+    pydantic_core==2.33.2 \
+    python-dateutil==2.9.0.post0 \
+    python-dotenv==1.1.1 \
+    referencing==0.36.2 \
+    requests==2.32.5 \
+    rpds-py==0.27.1 \
+    six==1.17.0 \
+    sniffio==1.3.1 \
+    sortedcontainers==2.4.0 \
+    tqdm==4.67.1 \
+    typing-inspection==0.4.2 \
+    typing_extensions==4.15.0 \
+    uagents==0.22.10 \
+    uagents-core==0.3.10 \
+    urllib3==2.5.0 \
+    uvicorn==0.37.0 \
+    virtualenv==20.34.0 \
+    Werkzeug==3.1.3 \
+    yarl==1.22.0
+
+# Your app's start command
+CMD ["python", "app.py"]
