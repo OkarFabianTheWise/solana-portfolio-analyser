@@ -30,7 +30,7 @@ client = Agent(
     name="flask-client",
     seed="flask-seed-456",
     port=8004,
-    endpoint=["http://127.0.0.1:8004/submit"],
+    endpoint=["https://icmagent.onrender.com/submit"],
 )
 
 @client.on_message(ChatAcknowledgement)
@@ -386,4 +386,5 @@ if __name__ == '__main__':
     print(f"API Endpoint: http://localhost:8000/api/query")
     print(f"API Docs: http://localhost:8000/api/docs")
     print(f"{'='*60}\n")
+
     app.run(debug=True, port=8000, use_reloader=False, host='0.0.0.0')
